@@ -104,7 +104,10 @@ def normalize(features: np.ndarray) -> np.ndarray:
 
 
 def load_model(path: str, n_feats: int, segment_length: int):
-    obj = torch.load(path, map_location="cpu")
+    try:
+        obj = torch.load(path, map_location="cpu", weights_only=False)
+    except TypeError:
+        obj = torch.load(path, map_location="cpu")
     if isinstance(obj, dict):
         model = ConvLSTM(n_feats, conv_kernel_size=3, embedding_size=350, num_layers=1)
         model.load_state_dict(obj)
