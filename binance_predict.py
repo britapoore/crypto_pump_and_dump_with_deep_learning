@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import time
 import numpy as np
 import requests
 import torch
@@ -167,6 +168,8 @@ def main():
     parser.add_argument("--window", type=int, default=5, help="Window size for feature statistics")
     parser.add_argument("--start", help="Start datetime UTC YYYY-MM-DD HH:MM")
     parser.add_argument("--end", help="End datetime UTC YYYY-MM-DD HH:MM")
+    parser.add_argument("--mode", default="single", choices=["single", "live"],
+                        help="Set to 'live' to continuously fetch data")
     args = parser.parse_args()
 
     if args.start and args.end:
@@ -179,21 +182,40 @@ def main():
         need = args.segment_length + args.window - 1
         klines = fetch_klines(args.symbol, args.interval, need)
 
-    feats = compute_features(klines, window=args.window)
-    feats = normalize(feats)
-
     model = load_model(args.model, n_feats=len(FEATURE_ORDER), segment_length=args.segment_length)
 
-    if args.start and args.end:
-        for i in range(args.segment_length, len(feats) + 1):
-            segment = feats[i - args.segment_length : i]
+    if args.mode == "live":
+        interval_sec = interval_to_millis(args.interval) / 1000
+        need = args.segment_length + args.window - 1
+        while True:
+            feats = compute_features(klines, window=args.window)
+            feats = normalize(feats)
+            segment = feats[-args.segment_length :]
             prob = predict(model, segment)
-            dt = datetime.datetime.utcfromtimestamp(int(klines[i - 1][0]) // 1000)
+            dt = datetime.datetime.utcfromtimestamp(int(klines[-1][0]) // 1000)
             print(f"{dt} pump probability: {prob:.4f}")
+            time.sleep(interval_sec)
+            try:
+                new = fetch_klines(args.symbol, args.interval, 1)
+                if new and new[-1][0] != klines[-1][0]:
+                    klines.append(new[-1])
+                    if len(klines) > need:
+                        klines = klines[-need:]
+            except Exception as e:
+                print("Error fetching data:", e)
     else:
-        segment = feats[-args.segment_length :]
-        prob = predict(model, segment)
-        print(f"Pump probability for {args.symbol}: {prob:.4f}")
+        feats = compute_features(klines, window=args.window)
+        feats = normalize(feats)
+        if args.start and args.end:
+            for i in range(args.segment_length, len(feats) + 1):
+                segment = feats[i - args.segment_length : i]
+                prob = predict(model, segment)
+                dt = datetime.datetime.utcfromtimestamp(int(klines[i - 1][0]) // 1000)
+                print(f"{dt} pump probability: {prob:.4f}")
+        else:
+            segment = feats[-args.segment_length :]
+            prob = predict(model, segment)
+            print(f"Pump probability for {args.symbol}: {prob:.4f}")
 
 
 if __name__ == "__main__":
