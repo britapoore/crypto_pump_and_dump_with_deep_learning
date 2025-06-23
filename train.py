@@ -189,6 +189,8 @@ def parse_args():
     args.add_argument('--config', type=str, default='')
     args.add_argument('--seed', type=int, default=0) #xA455
     args.add_argument('--run_count', type=int, default=1)
+    args.add_argument('--save_model', type=str, default='',
+        help='Path to write the trained model. If blank, the model is not saved')
     return args.parse_args()
 
 
@@ -282,3 +284,10 @@ if __name__ == '__main__':
         acc, precision, recall, f1 = fold_metrics / config.kfolds
         print(f'Final metrics for model {type(sample_model)} ({config.kfolds} folds)')
         print(f'Val   -- Acc: {acc:0.5f} -- Precision: {precision:0.5f} -- Recall: {recall:0.5f} -- F1: {f1:0.5f}')
+        if config.save_model:
+            fname = config.save_model
+            if config.run_count > 1:
+                base, ext = os.path.splitext(fname)
+                fname = f"{base}_{model_index+1}{ext}"
+            torch.save(model, fname)
+            print(f"Model saved to {fname}")

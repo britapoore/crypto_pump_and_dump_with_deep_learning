@@ -19,6 +19,7 @@ FEATURE_MEAN = {
     'hour_cos': 0.042832,
     'minute_sin': -0.015121,
     'minute_cos': 0.022793,
+    'delta_minutes': 1.107115,
 }
 
 FEATURE_STD = {
@@ -34,6 +35,7 @@ FEATURE_STD = {
     'hour_cos': 0.711686,
     'minute_sin': 0.698909,
     'minute_cos': 0.714685,
+    'delta_minutes': 3.665306,
 }
 
 FEATURE_ORDER = [
@@ -49,6 +51,7 @@ FEATURE_ORDER = [
     'hour_cos',
     'minute_sin',
     'minute_cos',
+    'delta_minutes',
 ]
 
 BINANCE_URL = "https://api.binance.com/api/v3/klines"
@@ -71,6 +74,10 @@ def compute_features(klines, window=5):
         closes = [float(k[4]) for k in win]
         highs = [float(k[2]) for k in win]
         dt = datetime.datetime.utcfromtimestamp(int(klines[i][0]) // 1000)
+        if i == 0:
+            delta = 0.0
+        else:
+            delta = (int(klines[i][0]) - int(klines[i-1][0])) / 60000
         feat = {
             'std_rush_order': 0.0,
             'avg_rush_order': 0.0,
@@ -84,6 +91,7 @@ def compute_features(klines, window=5):
             'hour_cos': np.cos(2 * np.pi * dt.hour / 24),
             'minute_sin': np.sin(2 * np.pi * dt.minute / 60),
             'minute_cos': np.cos(2 * np.pi * dt.minute / 60),
+            'delta_minutes': float(delta),
         }
         features.append([feat[k] for k in FEATURE_ORDER])
     return np.array(features, dtype=np.float32)
@@ -96,9 +104,12 @@ def normalize(features: np.ndarray) -> np.ndarray:
 
 
 def load_model(path: str, n_feats: int, segment_length: int):
-    model = ConvLSTM(n_feats, conv_kernel_size=3, embedding_size=350, num_layers=1)
-    state = torch.load(path, map_location="cpu")
-    model.load_state_dict(state)
+    obj = torch.load(path, map_location="cpu")
+    if isinstance(obj, dict):
+        model = ConvLSTM(n_feats, conv_kernel_size=3, embedding_size=350, num_layers=1)
+        model.load_state_dict(obj)
+    else:
+        model = obj
     model.eval()
     return model
 
