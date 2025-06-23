@@ -57,12 +57,46 @@ FEATURE_ORDER = [
 BINANCE_URL = "https://api.binance.com/api/v3/klines"
 
 
-def fetch_klines(symbol: str, interval: str, limit: int):
+def fetch_klines(symbol: str, interval: str, limit: int = None,
+                 start_ms: int | None = None, end_ms: int | None = None):
     """Fetch klines from Binance"""
-    params = {"symbol": symbol.upper(), "interval": interval, "limit": limit}
+    params = {"symbol": symbol.upper(), "interval": interval}
+    if limit is not None:
+        params["limit"] = limit
+    if start_ms is not None:
+        params["startTime"] = start_ms
+    if end_ms is not None:
+        params["endTime"] = end_ms
     resp = requests.get(BINANCE_URL, params=params, timeout=10)
     resp.raise_for_status()
     return resp.json()
+
+
+def interval_to_millis(interval: str) -> int:
+    unit = interval[-1]
+    qty = int(interval[:-1])
+    if unit == 'm':
+        return qty * 60_000
+    if unit == 'h':
+        return qty * 60 * 60_000
+    if unit == 'd':
+        return qty * 24 * 60 * 60_000
+    if unit == 'w':
+        return qty * 7 * 24 * 60 * 60_000
+    raise ValueError(f"Unsupported interval {interval}")
+
+
+def fetch_klines_range(symbol: str, interval: str, start_ms: int, end_ms: int):
+    out = []
+    while start_ms < end_ms:
+        resp = fetch_klines(symbol, interval, limit=1000, start_ms=start_ms, end_ms=end_ms)
+        if not resp:
+            break
+        out.extend(resp)
+        start_ms = resp[-1][0] + interval_to_millis(interval)
+        if len(resp) < 1000:
+            break
+    return out
 
 
 def compute_features(klines, window=5):
@@ -131,17 +165,35 @@ def main():
     parser.add_argument("--interval", default="1m", help="Binance kline interval")
     parser.add_argument("--segment_length", type=int, default=15, help="Length of model segment")
     parser.add_argument("--window", type=int, default=5, help="Window size for feature statistics")
+    parser.add_argument("--start", help="Start datetime UTC YYYY-MM-DD HH:MM")
+    parser.add_argument("--end", help="End datetime UTC YYYY-MM-DD HH:MM")
     args = parser.parse_args()
 
-    need = args.segment_length + args.window - 1
-    klines = fetch_klines(args.symbol, args.interval, need)
+    if args.start and args.end:
+        start_dt = datetime.datetime.strptime(args.start, "%Y-%m-%d %H:%M")
+        end_dt = datetime.datetime.strptime(args.end, "%Y-%m-%d %H:%M")
+        start_ms = int(start_dt.timestamp() * 1000)
+        end_ms = int(end_dt.timestamp() * 1000)
+        klines = fetch_klines_range(args.symbol, args.interval, start_ms, end_ms)
+    else:
+        need = args.segment_length + args.window - 1
+        klines = fetch_klines(args.symbol, args.interval, need)
+
     feats = compute_features(klines, window=args.window)
     feats = normalize(feats)
-    segment = feats[-args.segment_length :]
 
     model = load_model(args.model, n_feats=len(FEATURE_ORDER), segment_length=args.segment_length)
-    prob = predict(model, segment)
-    print(f"Pump probability for {args.symbol}: {prob:.4f}")
+
+    if args.start and args.end:
+        for i in range(args.segment_length, len(feats) + 1):
+            segment = feats[i - args.segment_length : i]
+            prob = predict(model, segment)
+            dt = datetime.datetime.utcfromtimestamp(int(klines[i - 1][0]) // 1000)
+            print(f"{dt} pump probability: {prob:.4f}")
+    else:
+        segment = feats[-args.segment_length :]
+        prob = predict(model, segment)
+        print(f"Pump probability for {args.symbol}: {prob:.4f}")
 
 
 if __name__ == "__main__":
