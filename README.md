@@ -9,6 +9,8 @@ To run our code, use:
 python train.py [--option value]
 ```
 
+Pass `--save_model model.pt` to write the trained model to disk.
+
 Possible command line options are as follows, by category:
 
 #### *General Settings*:
@@ -57,6 +59,7 @@ Possible command line options are as follows, by category:
 7. dataset: Point to the time-series dataset to train the model on
 8. seed: Set the seed of the model
 9. run_count: Set the number of times to run the model, in order to compute confidence intervals from logs
+10. save_model: Path to write the trained model file. If not provided, the model is not saved automatically
 ## Real-time Pump Detection
 
 Use `binance_predict.py` to fetch recent candlestick data from Binance and evaluate a saved model.
