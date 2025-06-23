@@ -73,3 +73,12 @@ You can also supply a specific time range with `--start` and `--end` in
 `YYYY-MM-DD HH:MM` UTC format to evaluate historical data. When a range is
 provided, the script prints pump probabilities for every segment within that
 window.
+
+For continuous monitoring you can run the script in *live* mode. This will
+download new data every 5 seconds (or the interval you specify) and output the
+pump probability after each update:
+
+```bash
+python binance_predict.py --symbol BTCUSDT --model path/to/model.pt \
+    --interval 5s --mode live
+```
