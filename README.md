@@ -57,3 +57,11 @@ Possible command line options are as follows, by category:
 7. dataset: Point to the time-series dataset to train the model on
 8. seed: Set the seed of the model
 9. run_count: Set the number of times to run the model, in order to compute confidence intervals from logs
+## Real-time Pump Detection
+
+Use `binance_predict.py` to fetch recent candlestick data from Binance and evaluate a saved model.
+Example:
+
+```bash
+python binance_predict.py --symbol BTCUSDT --model path/to/model.pt
+```
