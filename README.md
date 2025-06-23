@@ -68,3 +68,8 @@ Example:
 ```bash
 python binance_predict.py --symbol BTCUSDT --model path/to/model.pt
 ```
+
+You can also supply a specific time range with `--start` and `--end` in
+`YYYY-MM-DD HH:MM` UTC format to evaluate historical data. When a range is
+provided, the script prints pump probabilities for every segment within that
+window.
